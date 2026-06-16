@@ -5,7 +5,6 @@ from aiogram.filters import Command
 import os
 
 BOT_TOKEN = os.environ["BOT_TOKEN"]
-HF_TOKEN = os.environ["HF_TOKEN"]
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
@@ -15,7 +14,7 @@ user_counts = {}
 
 @dp.message(Command("start"))
 async def start(message: types.Message):
-    await message.answer("🎨 Salom! Men san'at yaratuvchi botman!\n\n🆓 Bepul: kuniga 3 ta rasm\n\nRasm olish uchun tasvirni yozing!")
+    await message.answer("🎨 Salom! Men san'at yaratuvchi botman!\n\n🆓 Bepul: kuniga 3 ta rasm\n\nRasm olish uchun tasvirni yozing!\nMasalan: sunset mountains")
 
 @dp.message()
 async def generate_image(message: types.Message):
@@ -26,21 +25,19 @@ async def generate_image(message: types.Message):
         await message.answer("⭐ Bepul limitingiz tugadi!")
         return
     await message.answer("🎨 Rasm yaratilmoqda... biroz kuting!")
+    prompt = message.text.replace(" ", "%20")
+    url = f"https://image.pollinations.ai/prompt/{prompt}?width=512&height=512&nologo=true"
     async with aiohttp.ClientSession() as session:
-        response = await session.post(
-            "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell",
-            headers={"Authorization": f"Bearer {HF_TOKEN}"},
-            json={"inputs": message.text}
-        )
-        if response.status == 200:
-            image_data = await response.read()
-            await message.answer_photo(
-                photo=types.BufferedInputFile(image_data, filename="art.png"),
-                caption=f"🎨 '{message.text}'"
-            )
-            user_counts[user_id] += 1
-        else:
-            await message.answer("❌ Xatolik yuz berdi!")
+        async with session.get(url) as response:
+            if response.status == 200:
+                image_data = await response.read()
+                await message.answer_photo(
+                    photo=types.BufferedInputFile(image_data, filename="art.png"),
+                    caption=f"🎨 '{message.text}'"
+                )
+                user_counts[user_id] += 1
+            else:
+                await message.answer("❌ Xatolik yuz berdi!")
 
 async def main():
     await dp.start_polling(bot)
