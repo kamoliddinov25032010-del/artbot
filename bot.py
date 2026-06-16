@@ -2,10 +2,10 @@ import asyncio
 import aiohttp
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
-from aiogram.client.session.aiohttp import AiohttpSession
+import os
 
-BOT_TOKEN = "8695232414:AAHxNwJtmaMQV4mPypHgLhMwDu4j5Kk0FB4"
-HF_TOKEN = "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"
+BOT_TOKEN = os.environ["BOT_TOKEN"]
+HF_TOKEN = os.environ["HF_TOKEN"]
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
