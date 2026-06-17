@@ -15,6 +15,7 @@ dp = Dispatcher()
 FREE_LIMIT = 3
 PREMIUM_PRICE = 150
 OWNER_ID = 7695822564
+CHANNEL = "@artbot_uz"
 
 user_counts = {}
 premium_users = set()
