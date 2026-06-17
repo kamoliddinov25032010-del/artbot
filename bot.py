@@ -157,6 +157,15 @@ async def ref(message: types.Message):
         f"💰 Hozirgi bonuslaringiz: {bonus} ta"
     )
 
+@dp.message(Command("users"))
+async def users_cmd(message: types.Message):
+    if message.from_user.id != OWNER_ID:
+        return
+    data = load_data()
+    total_users = len(data["total"])
+    premium_count = len(data["premium"])
+    await message.answer(f"👥 Jami foydalanuvchilar: {total_users} ta\n⭐ Premium: {premium_count} ta")
+
 @dp.message(Command("style"))
 async def style_cmd(message: types.Message):
     await message.answer("🎨 Uslub tanlang:", reply_markup=style_keyboard())
