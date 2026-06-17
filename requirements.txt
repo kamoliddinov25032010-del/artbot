@@ -2,3 +2,4 @@ aiogram
 aiohttp
 Pillow
 requests
+deep-translator

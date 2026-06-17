@@ -1,8 +1,10 @@
 import asyncio
 import aiohttp
+import random
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.types import LabeledPrice, PreCheckoutQuery, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from deep_translator import GoogleTranslator
 import os
 import urllib.parse
 
@@ -36,11 +38,20 @@ def style_keyboard():
     buttons = [[InlineKeyboardButton(text=name, callback_data=f"style_{key}")] for key, name in STYLE_NAMES.items()]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
+def translate_to_english(text):
+    try:
+        translated = GoogleTranslator(source='auto', target='en').translate(text)
+        return translated
+    except:
+        return text
+
 async def create_image(message, prompt, user_id):
+    english_prompt = translate_to_english(prompt)
     style_key = user_styles.get(user_id, "realistic")
     style = STYLES[style_key]
-    full_prompt = urllib.parse.quote(f"{prompt}, {style}")
-    url = f"https://image.pollinations.ai/prompt/{full_prompt}?width=512&height=512&nologo=true"
+    seed = random.randint(1, 99999)
+    full_prompt = urllib.parse.quote(f"{english_prompt}, {style}")
+    url = f"https://image.pollinations.ai/prompt/{full_prompt}?width=512&height=512&nologo=true&seed={seed}"
     async with aiohttp.ClientSession() as session:
         async with session.get(url, timeout=aiohttp.ClientTimeout(total=60)) as response:
             if response.status == 200:
@@ -60,10 +71,10 @@ async def create_image(message, prompt, user_id):
 async def start(message: types.Message):
     await message.answer(
         "🎨 Salom! Men kuchli san'at botman!\n\n"
-        "🖼 Rasm yaratish — matn yozing\n"
+        "🖼 Rasm yaratish — o'zbek yoki inglizcha yozing\n"
         "🎭 Uslub tanlash — /style\n"
         "⭐ Premium — /premium\n\n"
-        "Boshlang!"
+        "Boshlang! 🚀"
     )
 
 @dp.message(Command("style"))
@@ -86,7 +97,7 @@ async def change_style(callback: CallbackQuery):
 async def regenerate(callback: CallbackQuery):
     prompt = callback.data.replace("regen_", "")
     await callback.answer("🔄 Qayta yaratilmoqda...")
-    await callback.message.answer("🎨 Rasm qayta yaratilmoqda...")
+    await callback.message.answer("🎨 Yangi rasm yaratilmoqda...")
     await create_image(callback.message, prompt, callback.from_user.id)
 
 @dp.message(Command("premium"))
@@ -104,7 +115,7 @@ async def payment_done(message: types.Message):
 
 @dp.message(lambda m: m.photo is not None)
 async def analyze_image(message: types.Message):
-    await message.answer("🖼 Rasm qabul qilindi!\n\n✏️ Rasm tahrirlash tez orada qo'shiladi!")
+    await message.answer("🖼 Rasm qabul qilindi!\n\n✏️ Rasm tahrirlash tez orada!")
 
 @dp.message()
 async def generate_image(message: types.Message):
