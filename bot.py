@@ -12,6 +12,7 @@ dp = Dispatcher()
 
 FREE_LIMIT = 3
 PREMIUM_PRICE = 50
+OWNER_ID = 7695822564
 user_counts = {}
 premium_users = set()
 
@@ -37,7 +38,8 @@ async def generate_image(message: types.Message):
     user_id = message.from_user.id
     if user_id not in user_counts:
         user_counts[user_id] = 0
-    if user_id not in premium_users and user_counts[user_id] >= FREE_LIMIT:
+    is_owner = user_id == OWNER_ID
+    if not is_owner and user_id not in premium_users and user_counts[user_id] >= FREE_LIMIT:
         await message.answer("⭐ Limit tugadi! Premium: /premium")
         return
     await message.answer("🎨 Rasm yaratilmoqda...")
@@ -48,7 +50,7 @@ async def generate_image(message: types.Message):
             if response.status == 200:
                 image_data = await response.read()
                 await message.answer_photo(photo=types.BufferedInputFile(image_data, filename="art.png"), caption=f"🎨 {message.text}")
-                if user_id not in premium_users:
+                if not is_owner and user_id not in premium_users:
                     user_counts[user_id] += 1
             else:
                 await message.answer("❌ Xatolik!")
