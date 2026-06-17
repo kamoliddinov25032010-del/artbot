@@ -22,6 +22,8 @@ user_styles = {}
 user_sizes = {}
 user_total = {}
 user_bonus = {}
+all_users = {}
+blocked_users = set()
 
 STYLES = {
     "realistic": "photorealistic, 4k, ultra detailed, sharp focus, professional",
@@ -101,6 +103,15 @@ def main_keyboard():
         [KeyboardButton(text="🎁 Referal"), KeyboardButton(text="⭐ Premium")]
     ], resize_keyboard=True)
 
+def admin_keyboard():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="👥 Foydalanuvchilar", callback_data="admin_users")],
+        [InlineKeyboardButton(text="📢 Hammaga xabar", callback_data="admin_broadcast")],
+        [InlineKeyboardButton(text="⭐ Premium berish", callback_data="admin_give_premium")],
+        [InlineKeyboardButton(text="🚫 Bloklash", callback_data="admin_block")],
+        [InlineKeyboardButton(text="📊 Statistika", callback_data="admin_stats")]
+    ])
+
 def style_keyboard():
     buttons = [[InlineKeyboardButton(text=name, callback_data=f"style_{key}")] for key, name in STYLE_NAMES.items()]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -152,6 +163,8 @@ async def create_image(message, prompt, user_id):
 
 @dp.message(Command("start"))
 async def start(message: types.Message):
+    user_id = message.from_user.id
+    all_users[user_id] = message.from_user.first_name
     await message.answer(
         f"🎨 Salom {message.from_user.first_name}!\n\n"
         "Men Kamoliddinov Muhammadamin tomonidan yaratilgan kuchli san'at botman!\n\n"
@@ -159,9 +172,128 @@ async def start(message: types.Message):
         reply_markup=main_keyboard()
     )
 
+@dp.message(Command("admin"))
+async def admin(message: types.Message):
+    if message.from_user.id != OWNER_ID:
+        return
+    total = len(all_users)
+    premium = len(premium_users)
+    images = sum(user_total.values())
+    await message.answer(
+        f"👨‍💼 Admin Panel\n\n"
+        f"👥 Foydalanuvchilar: {total} ta\n"
+        f"⭐ Premium: {premium} ta\n"
+        f"🖼 Jami rasmlar: {images} ta\n"
+        f"🚫 Bloklangan: {len(blocked_users)} ta",
+        reply_markup=admin_keyboard()
+    )
+
+@dp.callback_query(lambda c: c.data == "admin_users")
+async def admin_users(callback: CallbackQuery):
+    if callback.from_user.id != OWNER_ID:
+        return
+    text = f"👥 Foydalanuvchilar ({len(all_users)} ta):\n\n"
+    for uid, name in list(all_users.items())[:20]:
+        total = user_total.get(uid, 0)
+        is_premium = "⭐" if uid in premium_users else ""
+        is_blocked = "🚫" if uid in blocked_users else ""
+        text += f"{is_premium}{is_blocked} {name} — {total} rasm\n"
+    await callback.message.answer(text)
+    await callback.answer()
+
+@dp.callback_query(lambda c: c.data == "admin_stats")
+async def admin_stats(callback: CallbackQuery):
+    if callback.from_user.id != OWNER_ID:
+        return
+    total_images = sum(user_total.values())
+    await callback.message.answer(
+        f"📊 Bot statistikasi:\n\n"
+        f"👥 Jami foydalanuvchilar: {len(all_users)} ta\n"
+        f"⭐ Premium foydalanuvchilar: {len(premium_users)} ta\n"
+        f"🖼 Jami yaratilgan rasmlar: {total_images} ta\n"
+        f"🚫 Bloklangan: {len(blocked_users)} ta"
+    )
+    await callback.answer()
+
+@dp.callback_query(lambda c: c.data == "admin_broadcast")
+async def admin_broadcast(callback: CallbackQuery):
+    if callback.from_user.id != OWNER_ID:
+        return
+    await callback.message.answer("📢 Xabar yozing:\n\n/broadcast Xabaringiz")
+    await callback.answer()
+
+@dp.callback_query(lambda c: c.data == "admin_give_premium")
+async def admin_give_premium(callback: CallbackQuery):
+    if callback.from_user.id != OWNER_ID:
+        return
+    await callback.message.answer("⭐ Premium berish uchun:\n\n/givepremium 123456789")
+    await callback.answer()
+
+@dp.callback_query(lambda c: c.data == "admin_block")
+async def admin_block_cb(callback: CallbackQuery):
+    if callback.from_user.id != OWNER_ID:
+        return
+    await callback.message.answer("🚫 Bloklash uchun:\n\n/block 123456789")
+    await callback.answer()
+
+@dp.message(Command("broadcast"))
+async def broadcast(message: types.Message):
+    if message.from_user.id != OWNER_ID:
+        return
+    text = message.text.replace("/broadcast ", "")
+    sent = 0
+    for uid in all_users:
+        if uid not in blocked_users:
+            try:
+                await bot.send_message(uid, f"📢 {text}")
+                sent += 1
+            except:
+                pass
+    await message.answer(f"✅ {sent} ta foydalanuvchiga yuborildi!")
+
+@dp.message(Command("givepremium"))
+async def give_premium(message: types.Message):
+    if message.from_user.id != OWNER_ID:
+        return
+    args = message.text.split()
+    if len(args) < 2:
+        await message.answer("Foydalanish: /givepremium 123456789")
+        return
+    uid = int(args[1])
+    premium_users.add(uid)
+    await message.answer(f"✅ {uid} ga premium berildi!")
+    try:
+        await bot.send_message(uid, "🎉 Sizga premium berildi! Cheksiz rasm yarating!")
+    except:
+        pass
+
+@dp.message(Command("block"))
+async def block_user(message: types.Message):
+    if message.from_user.id != OWNER_ID:
+        return
+    args = message.text.split()
+    if len(args) < 2:
+        await message.answer("Foydalanish: /block 123456789")
+        return
+    uid = int(args[1])
+    blocked_users.add(uid)
+    await message.answer(f"🚫 {uid} bloklandi!")
+
+@dp.message(Command("unblock"))
+async def unblock_user(message: types.Message):
+    if message.from_user.id != OWNER_ID:
+        return
+    args = message.text.split()
+    if len(args) < 2:
+        await message.answer("Foydalanish: /unblock 123456789")
+        return
+    uid = int(args[1])
+    blocked_users.discard(uid)
+    await message.answer(f"✅ {uid} blokdan chiqarildi!")
+
 @dp.message(lambda m: m.text == "🎨 Rasm yaratish")
 async def rasm_yaratish(message: types.Message):
-    await message.answer("✍️ Xohlagan narsangizni yozing — o'zbek yoki inglizcha!\n\nMasalan: tog'lar va quyosh, beautiful forest")
+    await message.answer("✍️ Xohlagan narsangizni yozing — o'zbek yoki inglizcha!\n\nMasalan: tog'lar va quyosh")
 
 @dp.message(lambda m: m.text == "💡 Tayyor promptlar")
 async def tayyor_promptlar(message: types.Message):
@@ -197,11 +329,7 @@ async def reyting(message: types.Message):
     medals = ["🥇", "🥈", "🥉"]
     for i, (uid, count) in enumerate(sorted_users):
         medal = medals[i] if i < 3 else f"{i+1}."
-        try:
-            user = await bot.get_chat(uid)
-            name = user.first_name
-        except:
-            name = "Foydalanuvchi"
+        name = all_users.get(uid, "Foydalanuvchi")
         text += f"{medal} {name} — {count} ta rasm\n"
     await message.answer(text)
 
@@ -227,7 +355,7 @@ async def premium_btn(message: types.Message):
 async def category_selected(callback: CallbackQuery):
     cat = callback.data.replace("cat_", "")
     prompts = PROMPTS.get(cat, [])
-    buttons = [[InlineKeyboardButton(text=f"🎨 {p[:40]}...", callback_data=f"prompt_{p[:50]}")] for p in prompts]
+    buttons = [[InlineKeyboardButton(text=f"🎨 {p[:40]}", callback_data=f"prompt_{p[:50]}")] for p in prompts]
     await callback.message.answer(f"{cat} promptlari:", reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
     await callback.answer()
 
@@ -289,6 +417,10 @@ async def analyze_image(message: types.Message):
 @dp.message()
 async def generate_image(message: types.Message):
     user_id = message.from_user.id
+    all_users[user_id] = message.from_user.first_name
+    if user_id in blocked_users:
+        await message.answer("🚫 Siz bloklangansiz!")
+        return
     if user_id not in user_counts:
         user_counts[user_id] = 0
     is_owner = user_id == OWNER_ID
@@ -296,7 +428,7 @@ async def generate_image(message: types.Message):
     count = user_counts.get(user_id, 0)
     bonus = user_bonus.get(user_id, 0)
     if not is_owner and not is_premium and count >= FREE_LIMIT and bonus <= 0:
-        await message.answer("⭐ Limit tugadi! Premium: /premium\n🎁 Bonus uchun: /ref", reply_markup=main_keyboard())
+        await message.answer("⭐ Limit tugadi! Premium: /premium\n🎁 Bonus uchun: /ref")
         return
     await message.answer("🎨 Rasm yaratilmoqda... biroz kuting!")
     success = await create_image(message, message.text, user_id)
