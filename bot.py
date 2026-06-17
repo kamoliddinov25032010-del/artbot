@@ -63,7 +63,7 @@ async def create_image(message, prompt, user_id):
     style = STYLES[style_key]
     seed = random.randint(1, 99999)
     full_prompt = urllib.parse.quote(f"{english_prompt}, {style}")
-    url = f"https://image.pollinations.ai/prompt/{full_prompt}?width=512&height=512&nologo=true&seed={seed}"
+    url = f"https://image.pollinations.ai/prompt/{full_prompt}?width=512&height=512&nologo=true&seed={seed}&model=flux"
     async with aiohttp.ClientSession() as session:
         async with session.get(url, timeout=aiohttp.ClientTimeout(total=60)) as response:
             if response.status == 200:
