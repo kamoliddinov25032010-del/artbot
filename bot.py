@@ -96,6 +96,19 @@ PROMPTS = {
     ]
 }
 
+async def check_subscription(user_id):
+    try:
+        member = await bot.get_chat_member(CHANNEL, user_id)
+        return member.status not in ["left", "kicked"]
+    except:
+        return False
+
+def sub_keyboard():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📢 Kanalga obuna bo'lish", url="https://t.me/artbot_uz")],
+        [InlineKeyboardButton(text="✅ Obuna bo'ldim", callback_data="check_sub")]
+    ])
+
 def main_keyboard():
     return ReplyKeyboardMarkup(keyboard=[
         [KeyboardButton(text="🎨 Rasm yaratish"), KeyboardButton(text="💡 Tayyor promptlar")],
@@ -162,20 +175,18 @@ async def create_image(message, prompt, user_id):
                 return True
             return False
 
-async def check_subscription(user_id):
-    try:
-        member = await bot.get_chat_member("@artbot_uz", user_id)
-        return member.status not in ["left", "kicked"]
-    except:
-        return False
-
 @dp.message(Command("start"))
 async def start(message: types.Message):
     user_id = message.from_user.id
     all_users[user_id] = message.from_user.first_name
-    is_sub = await check_subscription(message.from_user.id)
-    if not is_sub:
-        await message.answer("⚠️ Botdan foydalanish uchun kanalga obuna bo'ling!\n\n👉 @artbot_uz\n\nObuna bo'lgach /start yozing!", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📢 Kanalga obuna bo'lish", url="https://t.me/artbot_uz")]]))
+    is_sub = await check_subscription(user_id)
+    if not is_sub and user_id != OWNER_ID:
+        await message.answer(
+            "⚠️ Botdan foydalanish uchun kanalga obuna bo'ling!\n\n"
+            "👉 @artbot_uz\n\n"
+            "Obuna bo'lgach '✅ Obuna bo'ldim' tugmasini bosing!",
+            reply_markup=sub_keyboard()
+        )
         return
     await message.answer(
         f"🎨 Salom {message.from_user.first_name}!\n\n"
@@ -184,6 +195,20 @@ async def start(message: types.Message):
         reply_markup=main_keyboard()
     )
 
+@dp.callback_query(lambda c: c.data == "check_sub")
+async def check_sub_callback(callback: CallbackQuery):
+    is_sub = await check_subscription(callback.from_user.id)
+    if is_sub:
+        all_users[callback.from_user.id] = callback.from_user.first_name
+        await callback.message.answer(
+            f"✅ Rahmat! Salom {callback.from_user.first_name}!\n\n"
+            "Quyidagi tugmalardan foydalaning! 👇",
+            reply_markup=main_keyboard()
+        )
+        await callback.answer("✅ Tabriklaymiz!")
+    else:
+        await callback.answer("❌ Hali obuna bo'lmadingiz!", show_alert=True)
+
 @dp.message(Command("admin"))
 async def admin(message: types.Message):
     if message.from_user.id != OWNER_ID:
@@ -191,10 +216,6 @@ async def admin(message: types.Message):
     total = len(all_users)
     premium = len(premium_users)
     images = sum(user_total.values())
-    is_sub = await check_subscription(message.from_user.id)
-    if not is_sub:
-        await message.answer("⚠️ Botdan foydalanish uchun kanalga obuna bo'ling!\n\n👉 @artbot_uz\n\nObuna bo'lgach /start yozing!", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📢 Kanalga obuna bo'lish", url="https://t.me/artbot_uz")]]))
-        return
     await message.answer(
         f"👨‍💼 Admin Panel\n\n"
         f"👥 Foydalanuvchilar: {total} ta\n"
@@ -213,7 +234,7 @@ async def admin_users(callback: CallbackQuery):
         total = user_total.get(uid, 0)
         is_premium = "⭐" if uid in premium_users else ""
         is_blocked = "🚫" if uid in blocked_users else ""
-        text += f"{is_premium}{is_blocked} {name} — {total} rasm\n"
+        text += f"{is_premium}{is_blocked} {name} — {total} rasm | ID: {uid}\n"
     await callback.message.answer(text)
     await callback.answer()
 
@@ -225,8 +246,8 @@ async def admin_stats(callback: CallbackQuery):
     await callback.message.answer(
         f"📊 Bot statistikasi:\n\n"
         f"👥 Jami foydalanuvchilar: {len(all_users)} ta\n"
-        f"⭐ Premium foydalanuvchilar: {len(premium_users)} ta\n"
-        f"🖼 Jami yaratilgan rasmlar: {total_images} ta\n"
+        f"⭐ Premium: {len(premium_users)} ta\n"
+        f"🖼 Jami rasmlar: {total_images} ta\n"
         f"🚫 Bloklangan: {len(blocked_users)} ta"
     )
     await callback.answer()
@@ -242,14 +263,14 @@ async def admin_broadcast(callback: CallbackQuery):
 async def admin_give_premium(callback: CallbackQuery):
     if callback.from_user.id != OWNER_ID:
         return
-    await callback.message.answer("⭐ Premium berish uchun:\n\n/givepremium 123456789")
+    await callback.message.answer("⭐ Premium berish:\n\n/givepremium 123456789")
     await callback.answer()
 
 @dp.callback_query(lambda c: c.data == "admin_block")
 async def admin_block_cb(callback: CallbackQuery):
     if callback.from_user.id != OWNER_ID:
         return
-    await callback.message.answer("🚫 Bloklash uchun:\n\n/block 123456789")
+    await callback.message.answer("🚫 Bloklash:\n\n/block 123456789")
     await callback.answer()
 
 @dp.message(Command("broadcast"))
@@ -265,10 +286,6 @@ async def broadcast(message: types.Message):
                 sent += 1
             except:
                 pass
-    is_sub = await check_subscription(message.from_user.id)
-    if not is_sub:
-        await message.answer("⚠️ Botdan foydalanish uchun kanalga obuna bo'ling!\n\n👉 @artbot_uz\n\nObuna bo'lgach /start yozing!", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📢 Kanalga obuna bo'lish", url="https://t.me/artbot_uz")]]))
-        return
     await message.answer(f"✅ {sent} ta foydalanuvchiga yuborildi!")
 
 @dp.message(Command("givepremium"))
@@ -277,18 +294,10 @@ async def give_premium(message: types.Message):
         return
     args = message.text.split()
     if len(args) < 2:
-        is_sub = await check_subscription(message.from_user.id)
-    if not is_sub:
-        await message.answer("⚠️ Botdan foydalanish uchun kanalga obuna bo'ling!\n\n👉 @artbot_uz\n\nObuna bo'lgach /start yozing!", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📢 Kanalga obuna bo'lish", url="https://t.me/artbot_uz")]]))
-        return
-    await message.answer("Foydalanish: /givepremium 123456789")
+        await message.answer("Foydalanish: /givepremium 123456789")
         return
     uid = int(args[1])
     premium_users.add(uid)
-    is_sub = await check_subscription(message.from_user.id)
-    if not is_sub:
-        await message.answer("⚠️ Botdan foydalanish uchun kanalga obuna bo'ling!\n\n👉 @artbot_uz\n\nObuna bo'lgach /start yozing!", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📢 Kanalga obuna bo'lish", url="https://t.me/artbot_uz")]]))
-        return
     await message.answer(f"✅ {uid} ga premium berildi!")
     try:
         await bot.send_message(uid, "🎉 Sizga premium berildi! Cheksiz rasm yarating!")
@@ -301,18 +310,10 @@ async def block_user(message: types.Message):
         return
     args = message.text.split()
     if len(args) < 2:
-        is_sub = await check_subscription(message.from_user.id)
-    if not is_sub:
-        await message.answer("⚠️ Botdan foydalanish uchun kanalga obuna bo'ling!\n\n👉 @artbot_uz\n\nObuna bo'lgach /start yozing!", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📢 Kanalga obuna bo'lish", url="https://t.me/artbot_uz")]]))
-        return
-    await message.answer("Foydalanish: /block 123456789")
+        await message.answer("Foydalanish: /block 123456789")
         return
     uid = int(args[1])
     blocked_users.add(uid)
-    is_sub = await check_subscription(message.from_user.id)
-    if not is_sub:
-        await message.answer("⚠️ Botdan foydalanish uchun kanalga obuna bo'ling!\n\n👉 @artbot_uz\n\nObuna bo'lgach /start yozing!", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📢 Kanalga obuna bo'lish", url="https://t.me/artbot_uz")]]))
-        return
     await message.answer(f"🚫 {uid} bloklandi!")
 
 @dp.message(Command("unblock"))
@@ -321,50 +322,26 @@ async def unblock_user(message: types.Message):
         return
     args = message.text.split()
     if len(args) < 2:
-        is_sub = await check_subscription(message.from_user.id)
-    if not is_sub:
-        await message.answer("⚠️ Botdan foydalanish uchun kanalga obuna bo'ling!\n\n👉 @artbot_uz\n\nObuna bo'lgach /start yozing!", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📢 Kanalga obuna bo'lish", url="https://t.me/artbot_uz")]]))
-        return
-    await message.answer("Foydalanish: /unblock 123456789")
+        await message.answer("Foydalanish: /unblock 123456789")
         return
     uid = int(args[1])
     blocked_users.discard(uid)
-    is_sub = await check_subscription(message.from_user.id)
-    if not is_sub:
-        await message.answer("⚠️ Botdan foydalanish uchun kanalga obuna bo'ling!\n\n👉 @artbot_uz\n\nObuna bo'lgach /start yozing!", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📢 Kanalga obuna bo'lish", url="https://t.me/artbot_uz")]]))
-        return
     await message.answer(f"✅ {uid} blokdan chiqarildi!")
 
 @dp.message(lambda m: m.text == "🎨 Rasm yaratish")
 async def rasm_yaratish(message: types.Message):
-    is_sub = await check_subscription(message.from_user.id)
-    if not is_sub:
-        await message.answer("⚠️ Botdan foydalanish uchun kanalga obuna bo'ling!\n\n👉 @artbot_uz\n\nObuna bo'lgach /start yozing!", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📢 Kanalga obuna bo'lish", url="https://t.me/artbot_uz")]]))
-        return
-    await message.answer("✍️ Xohlagan narsangizni yozing — o'zbek yoki inglizcha!\n\nMasalan: tog'lar va quyosh")
+    await message.answer("✍️ Xohlagan narsangizni yozing — o'zbek yoki inglizcha!")
 
 @dp.message(lambda m: m.text == "💡 Tayyor promptlar")
 async def tayyor_promptlar(message: types.Message):
-    is_sub = await check_subscription(message.from_user.id)
-    if not is_sub:
-        await message.answer("⚠️ Botdan foydalanish uchun kanalga obuna bo'ling!\n\n👉 @artbot_uz\n\nObuna bo'lgach /start yozing!", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📢 Kanalga obuna bo'lish", url="https://t.me/artbot_uz")]]))
-        return
     await message.answer("💡 Kategoriya tanlang:", reply_markup=prompts_keyboard())
 
 @dp.message(lambda m: m.text == "🎭 Uslub tanlash")
 async def uslub_tanlash(message: types.Message):
-    is_sub = await check_subscription(message.from_user.id)
-    if not is_sub:
-        await message.answer("⚠️ Botdan foydalanish uchun kanalga obuna bo'ling!\n\n👉 @artbot_uz\n\nObuna bo'lgach /start yozing!", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📢 Kanalga obuna bo'lish", url="https://t.me/artbot_uz")]]))
-        return
     await message.answer("🎭 Uslub tanlang:", reply_markup=style_keyboard())
 
 @dp.message(lambda m: m.text == "📏 O'lcham tanlash")
 async def olcham_tanlash(message: types.Message):
-    is_sub = await check_subscription(message.from_user.id)
-    if not is_sub:
-        await message.answer("⚠️ Botdan foydalanish uchun kanalga obuna bo'ling!\n\n👉 @artbot_uz\n\nObuna bo'lgach /start yozing!", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📢 Kanalga obuna bo'lish", url="https://t.me/artbot_uz")]]))
-        return
     await message.answer("📏 O'lcham tanlang:", reply_markup=size_keyboard())
 
 @dp.message(lambda m: m.text == "📊 Statistika")
@@ -372,10 +349,6 @@ async def statistika(message: types.Message):
     user_id = message.from_user.id
     total = user_total.get(user_id, 0)
     bonus = user_bonus.get(user_id, 0)
-    is_sub = await check_subscription(message.from_user.id)
-    if not is_sub:
-        await message.answer("⚠️ Botdan foydalanish uchun kanalga obuna bo'ling!\n\n👉 @artbot_uz\n\nObuna bo'lgach /start yozing!", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📢 Kanalga obuna bo'lish", url="https://t.me/artbot_uz")]]))
-        return
     await message.answer(
         f"📊 Sizning statistikangiz:\n\n"
         f"🏅 Daraja: {get_rank(total)}\n"
@@ -386,11 +359,7 @@ async def statistika(message: types.Message):
 @dp.message(lambda m: m.text == "🏆 Reyting")
 async def reyting(message: types.Message):
     if not user_total:
-        is_sub = await check_subscription(message.from_user.id)
-    if not is_sub:
-        await message.answer("⚠️ Botdan foydalanish uchun kanalga obuna bo'ling!\n\n👉 @artbot_uz\n\nObuna bo'lgach /start yozing!", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📢 Kanalga obuna bo'lish", url="https://t.me/artbot_uz")]]))
-        return
-    await message.answer("🏆 Hali hech kim rasm yaratmagan!")
+        await message.answer("🏆 Hali hech kim rasm yaratmagan!")
         return
     sorted_users = sorted(user_total.items(), key=lambda x: x[1], reverse=True)[:10]
     text = "🏆 Eng faol foydalanuvchilar:\n\n"
@@ -399,10 +368,6 @@ async def reyting(message: types.Message):
         medal = medals[i] if i < 3 else f"{i+1}."
         name = all_users.get(uid, "Foydalanuvchi")
         text += f"{medal} {name} — {count} ta rasm\n"
-    is_sub = await check_subscription(message.from_user.id)
-    if not is_sub:
-        await message.answer("⚠️ Botdan foydalanish uchun kanalga obuna bo'ling!\n\n👉 @artbot_uz\n\nObuna bo'lgach /start yozing!", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📢 Kanalga obuna bo'lish", url="https://t.me/artbot_uz")]]))
-        return
     await message.answer(text)
 
 @dp.message(lambda m: m.text == "🎁 Referal")
@@ -411,10 +376,6 @@ async def referal(message: types.Message):
     bot_info = await bot.get_me()
     link = f"https://t.me/{bot_info.username}?start={user_id}"
     bonus = user_bonus.get(user_id, 0)
-    is_sub = await check_subscription(message.from_user.id)
-    if not is_sub:
-        await message.answer("⚠️ Botdan foydalanish uchun kanalga obuna bo'ling!\n\n👉 @artbot_uz\n\nObuna bo'lgach /start yozing!", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📢 Kanalga obuna bo'lish", url="https://t.me/artbot_uz")]]))
-        return
     await message.answer(
         f"🎁 Sizning referal linkingiz:\n{link}\n\n"
         f"Do'stingiz shu link orqali kirsa:\n"
@@ -425,7 +386,7 @@ async def referal(message: types.Message):
 
 @dp.message(lambda m: m.text == "⭐ Premium")
 async def premium_btn(message: types.Message):
-    await bot.send_invoice(chat_id=message.chat.id, title="⭐ Premium obuna", description="Cheksiz rasm yaratish!", payload="premium", currency="XTR", prices=[LabeledPrice(label="Premium", amount=PREMIUM_PRICE)])
+    await bot.send_invoice(chat_id=message.chat.id, title="⭐ Premium obuna", description="Cheksiz rasm yaratish! 1 oy", payload="premium", currency="XTR", prices=[LabeledPrice(label="Premium", amount=PREMIUM_PRICE)])
 
 @dp.callback_query(lambda c: c.data.startswith("cat_"))
 async def category_selected(callback: CallbackQuery):
@@ -475,7 +436,7 @@ async def regenerate(callback: CallbackQuery):
 
 @dp.message(Command("premium"))
 async def premium(message: types.Message):
-    await bot.send_invoice(chat_id=message.chat.id, title="⭐ Premium obuna", description="Cheksiz rasm yaratish!", payload="premium", currency="XTR", prices=[LabeledPrice(label="Premium", amount=PREMIUM_PRICE)])
+    await bot.send_invoice(chat_id=message.chat.id, title="⭐ Premium obuna", description="Cheksiz rasm yaratish! 1 oy", payload="premium", currency="XTR", prices=[LabeledPrice(label="Premium", amount=PREMIUM_PRICE)])
 
 @dp.pre_checkout_query()
 async def pre_checkout(query: PreCheckoutQuery):
@@ -484,18 +445,10 @@ async def pre_checkout(query: PreCheckoutQuery):
 @dp.message(lambda m: m.successful_payment is not None)
 async def payment_done(message: types.Message):
     premium_users.add(message.from_user.id)
-    is_sub = await check_subscription(message.from_user.id)
-    if not is_sub:
-        await message.answer("⚠️ Botdan foydalanish uchun kanalga obuna bo'ling!\n\n👉 @artbot_uz\n\nObuna bo'lgach /start yozing!", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📢 Kanalga obuna bo'lish", url="https://t.me/artbot_uz")]]))
-        return
     await message.answer("🎉 Premium faollashdi! Cheksiz rasm yarating!")
 
 @dp.message(lambda m: m.photo is not None)
 async def analyze_image(message: types.Message):
-    is_sub = await check_subscription(message.from_user.id)
-    if not is_sub:
-        await message.answer("⚠️ Botdan foydalanish uchun kanalga obuna bo'ling!\n\n👉 @artbot_uz\n\nObuna bo'lgach /start yozing!", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📢 Kanalga obuna bo'lish", url="https://t.me/artbot_uz")]]))
-        return
     await message.answer("🖼 Rasm qabul qilindi!\n\n✏️ Rasm tahrirlash tez orada!")
 
 @dp.message()
@@ -503,11 +456,14 @@ async def generate_image(message: types.Message):
     user_id = message.from_user.id
     all_users[user_id] = message.from_user.first_name
     if user_id in blocked_users:
-        is_sub = await check_subscription(message.from_user.id)
-    if not is_sub:
-        await message.answer("⚠️ Botdan foydalanish uchun kanalga obuna bo'ling!\n\n👉 @artbot_uz\n\nObuna bo'lgach /start yozing!", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📢 Kanalga obuna bo'lish", url="https://t.me/artbot_uz")]]))
+        await message.answer("🚫 Siz bloklangansiz!")
         return
-    await message.answer("🚫 Siz bloklangansiz!")
+    is_sub = await check_subscription(user_id)
+    if not is_sub and user_id != OWNER_ID:
+        await message.answer(
+            "⚠️ Botdan foydalanish uchun kanalga obuna bo'ling!\n\n👉 @artbot_uz",
+            reply_markup=sub_keyboard()
+        )
         return
     if user_id not in user_counts:
         user_counts[user_id] = 0
@@ -516,15 +472,7 @@ async def generate_image(message: types.Message):
     count = user_counts.get(user_id, 0)
     bonus = user_bonus.get(user_id, 0)
     if not is_owner and not is_premium and count >= FREE_LIMIT and bonus <= 0:
-        is_sub = await check_subscription(message.from_user.id)
-    if not is_sub:
-        await message.answer("⚠️ Botdan foydalanish uchun kanalga obuna bo'ling!\n\n👉 @artbot_uz\n\nObuna bo'lgach /start yozing!", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📢 Kanalga obuna bo'lish", url="https://t.me/artbot_uz")]]))
-        return
-    await message.answer("⭐ Limit tugadi! Premium: /premium\n🎁 Bonus uchun: /ref")
-        return
-    is_sub = await check_subscription(message.from_user.id)
-    if not is_sub:
-        await message.answer("⚠️ Botdan foydalanish uchun kanalga obuna bo'ling!\n\n👉 @artbot_uz\n\nObuna bo'lgach /start yozing!", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📢 Kanalga obuna bo'lish", url="https://t.me/artbot_uz")]]))
+        await message.answer("⭐ Limit tugadi! Premium: /premium\n🎁 Bonus uchun: /ref")
         return
     await message.answer("🎨 Rasm yaratilmoqda... biroz kuting!")
     success = await create_image(message, message.text, user_id)
@@ -536,25 +484,13 @@ async def generate_image(message: types.Message):
             else:
                 user_counts[user_id] = count + 1
             remaining = FREE_LIMIT - user_counts.get(user_id, 0) + user_bonus.get(user_id, 0)
-            is_sub = await check_subscription(message.from_user.id)
-    if not is_sub:
-        await message.answer("⚠️ Botdan foydalanish uchun kanalga obuna bo'ling!\n\n👉 @artbot_uz\n\nObuna bo'lgach /start yozing!", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📢 Kanalga obuna bo'lish", url="https://t.me/artbot_uz")]]))
-        return
-    await message.answer(f"💡 Bugun yana {max(0, remaining)} ta rasm qoldi!")
+            await message.answer(f"💡 Bugun yana {max(0, remaining)} ta rasm qoldi!")
         total = user_total[user_id]
         if total % 10 == 0:
             user_bonus[user_id] = user_bonus.get(user_id, 0) + 1
-            is_sub = await check_subscription(message.from_user.id)
-    if not is_sub:
-        await message.answer("⚠️ Botdan foydalanish uchun kanalga obuna bo'ling!\n\n👉 @artbot_uz\n\nObuna bo'lgach /start yozing!", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📢 Kanalga obuna bo'lish", url="https://t.me/artbot_uz")]]))
-        return
-    await message.answer(f"🎉 {total} ta rasm! +1 bonus!\n{get_rank(total)} darajasi!")
+            await message.answer(f"🎉 {total} ta rasm! +1 bonus!\n{get_rank(total)} darajasi!")
     else:
-        is_sub = await check_subscription(message.from_user.id)
-    if not is_sub:
-        await message.answer("⚠️ Botdan foydalanish uchun kanalga obuna bo'ling!\n\n👉 @artbot_uz\n\nObuna bo'lgach /start yozing!", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📢 Kanalga obuna bo'lish", url="https://t.me/artbot_uz")]]))
-        return
-    await message.answer("❌ Xatolik! Qayta urinib ko'ring.")
+        await message.answer("❌ Xatolik! Qayta urinib ko'ring.")
 
 async def main():
     await dp.start_polling(bot)
