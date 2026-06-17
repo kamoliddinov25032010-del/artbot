@@ -3,3 +3,4 @@ aiohttp
 Pillow
 requests
 deep-translator
+supabase

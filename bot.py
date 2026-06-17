@@ -13,7 +13,7 @@ bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
 FREE_LIMIT = 3
-PREMIUM_PRICE = 50
+PREMIUM_PRICE = 150
 OWNER_ID = 7695822564
 
 user_counts = {}
