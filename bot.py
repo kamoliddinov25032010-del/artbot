@@ -37,7 +37,7 @@ def load_data():
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, "r") as f:
             return json.load(f)
-    return {"counts": {}, "total": {}, "bonus": {}, "premium": [], "styles": {}, "referrals": {}}
+    return {"counts": {}, "total": {}, "bonus": {}, "premium": [], "styles": {}, "referrals": {}, "users": []}
 
 def save_data(data):
     with open(DATA_FILE, "w") as f:
@@ -82,9 +82,19 @@ async def create_image(message, prompt, user_id):
                 return True
             return False
 
+def track_user(user_id, first_name):
+    data = load_data()
+    uid = str(user_id)
+    if "users" not in data:
+        data["users"] = {}
+    if uid not in data["users"]:
+        data["users"][uid] = first_name
+        save_data(data)
+
 @dp.message(Command("start"))
 async def start(message: types.Message):
     user_id = str(message.from_user.id)
+    track_user(message.from_user.id, message.from_user.first_name)
     data = load_data()
     args = message.text.split()
     if len(args) > 1 and args[1].isdigit():
@@ -109,6 +119,34 @@ async def start(message: types.Message):
         "Boshlang! 🚀"
     )
 
+@dp.message(Command("users"))
+async def users_cmd(message: types.Message):
+    if message.from_user.id != OWNER_ID:
+        return
+    data = load_data()
+    users = data.get("users", {})
+    premium_count = len(data.get("premium", []))
+    text = f"👥 Jami foydalanuvchilar: {len(users)} ta\n⭐ Premium: {premium_count} ta\n\n"
+    for uid, name in list(users.items())[:20]:
+        text += f"• {name}\n"
+    await message.answer(text)
+
+@dp.message(Command("broadcast"))
+async def broadcast(message: types.Message):
+    if message.from_user.id != OWNER_ID:
+        return
+    text = message.text.replace("/broadcast ", "")
+    data = load_data()
+    users = data.get("users", {})
+    sent = 0
+    for uid in users:
+        try:
+            await bot.send_message(int(uid), text)
+            sent += 1
+        except:
+            pass
+    await message.answer(f"✅ {sent} ta foydalanuvchiga yuborildi!")
+
 @dp.message(Command("stats"))
 async def stats(message: types.Message):
     user_id = str(message.from_user.id)
@@ -132,13 +170,10 @@ async def top(message: types.Message):
     sorted_users = sorted(data["total"].items(), key=lambda x: x[1], reverse=True)[:10]
     text = "🏆 Eng faol foydalanuvchilar:\n\n"
     medals = ["🥇", "🥈", "🥉"]
+    users = data.get("users", {})
     for i, (uid, count) in enumerate(sorted_users):
         medal = medals[i] if i < 3 else f"{i+1}."
-        try:
-            user = await bot.get_chat(int(uid))
-            name = user.first_name
-        except:
-            name = "Foydalanuvchi"
+        name = users.get(uid, "Foydalanuvchi")
         text += f"{medal} {name} — {count} ta rasm\n"
     await message.answer(text)
 
@@ -156,15 +191,6 @@ async def ref(message: types.Message):
         f"✅ Do'stingiz +3 bonus rasm\n\n"
         f"💰 Hozirgi bonuslaringiz: {bonus} ta"
     )
-
-@dp.message(Command("users"))
-async def users_cmd(message: types.Message):
-    if message.from_user.id != OWNER_ID:
-        return
-    data = load_data()
-    total_users = len(data["total"])
-    premium_count = len(data["premium"])
-    await message.answer(f"👥 Jami foydalanuvchilar: {total_users} ta\n⭐ Premium: {premium_count} ta")
 
 @dp.message(Command("style"))
 async def style_cmd(message: types.Message):
@@ -210,10 +236,12 @@ async def payment_done(message: types.Message):
 
 @dp.message(lambda m: m.photo is not None)
 async def analyze_image(message: types.Message):
+    track_user(message.from_user.id, message.from_user.first_name)
     await message.answer("🖼 Rasm qabul qilindi!\n\n✏️ Rasm tahrirlash tez orada!")
 
 @dp.message()
 async def generate_image(message: types.Message):
+    track_user(message.from_user.id, message.from_user.first_name)
     user_id = str(message.from_user.id)
     data = load_data()
     is_owner = int(user_id) == OWNER_ID
@@ -226,10 +254,11 @@ async def generate_image(message: types.Message):
     await message.answer("🎨 Rasm yaratilmoqda... biroz kuting!")
     success = await create_image(message, message.text, int(user_id))
     if success:
+        data = load_data()
         data["total"][user_id] = data["total"].get(user_id, 0) + 1
         if not is_owner and not is_premium:
             if bonus > 0:
-                data["bonus"][user_id] -= 1
+                data["bonus"][user_id] = bonus - 1
             else:
                 data["counts"][user_id] = count + 1
             remaining = FREE_LIMIT - data["counts"].get(user_id, 0) + data["bonus"].get(user_id, 0)
