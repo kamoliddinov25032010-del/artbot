@@ -93,7 +93,7 @@ async def start(message: types.Message):
             user_bonus[ref_id] = user_bonus.get(ref_id, 0) + 3
             await bot.send_message(ref_id, f"🎁 Do'stingiz botga kirdi! +3 bonus rasm oldingiz!")
     await message.answer(
-        f"🎨 Salom {message.from_user.first_name}! Men kuchli san'at botman!\n\n"
+        f"🎨 Salom {message.from_user.first_name}!\n\nMen Kamoliddinov Muhammadamin tomonidan yaratilgan kuchli san'at botman!\n\n"
         "🖼 Rasm yaratish — o'zbek yoki inglizcha yozing\n"
         "🎭 Uslub — /style\n"
         "📊 Statistika — /stats\n"
