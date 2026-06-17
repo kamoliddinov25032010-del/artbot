@@ -162,6 +162,13 @@ async def create_image(message, prompt, user_id):
                 return True
             return False
 
+async def check_subscription(user_id):
+    try:
+        member = await bot.get_chat_member("@artbot_uz", user_id)
+        return member.status not in ["left", "kicked"]
+    except:
+        return False
+
 @dp.message(Command("start"))
 async def start(message: types.Message):
     user_id = message.from_user.id
